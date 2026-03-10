@@ -189,7 +189,10 @@ describe("debouncer e2e", () => {
 
       expect(result.executed).toBe(true);
 
-      // Target should have been called immediately
+      // Eager execution is via scheduler.runAfter(0, ...), flush to execute
+      vi.advanceTimersByTime(0);
+      await flush(t);
+
       const logs = await getLogs(t);
       expect(logs).toHaveLength(1);
       expect(logs[0].args).toEqual({ key: "k1", value: "immediate" });
@@ -224,6 +227,10 @@ describe("debouncer e2e", () => {
         key: "k1",
         value: "first",
       });
+
+      // Flush only the immediate execution (0-delay), not the trailing timer
+      vi.advanceTimersByTime(0);
+      await t.finishInProgressScheduledFunctions();
 
       // Second call within cooldown - queued as trailing
       await t.mutation(api.example.e2eTriggerEager, {
@@ -318,6 +325,84 @@ describe("debouncer e2e", () => {
       expect(logs).toHaveLength(2);
       expect(logs[0].args.value).toBe("round-1");
       expect(logs[1].args.value).toBe("round-2");
+    });
+  });
+
+  // ==========================================================================
+  // Action support
+  // ==========================================================================
+  describe("action support", () => {
+    test("sliding mode - action target executes after delay", async () => {
+      const t = initConvexTest();
+
+      await t.mutation(api.example.e2eTriggerSlidingAction, {
+        key: "k1",
+        value: "action-v1",
+      });
+
+      expect(await getLogs(t)).toHaveLength(0);
+
+      vi.advanceTimersByTime(6000);
+      await flush(t);
+
+      const logs = await getLogs(t);
+      expect(logs).toHaveLength(1);
+      expect(logs[0].functionName).toBe("e2eActionTarget");
+      expect(logs[0].args).toEqual({ key: "k1", value: "action-v1" });
+
+      expect(await getStatus(t, "e2e-sliding-action", "k1")).toBeNull();
+    });
+
+    test("eager mode - action target executes immediately via scheduler", async () => {
+      const t = initConvexTest();
+
+      const result = await t.mutation(api.example.e2eTriggerEagerAction, {
+        key: "k1",
+        value: "eager-action",
+      });
+
+      expect(result.executed).toBe(true);
+
+      // Eager execution is via scheduler.runAfter(0, ...), so need to flush
+      vi.advanceTimersByTime(0);
+      await flush(t);
+
+      const logs = await getLogs(t);
+      expect(logs).toHaveLength(1);
+      expect(logs[0].functionName).toBe("e2eActionTarget");
+      expect(logs[0].args).toEqual({ key: "k1", value: "eager-action" });
+    });
+
+    test("eager mode - action trailing call executes with latest args", async () => {
+      const t = initConvexTest();
+
+      // First call - immediate
+      await t.mutation(api.example.e2eTriggerEagerAction, {
+        key: "k1",
+        value: "first",
+      });
+
+      // Flush immediate execution (via scheduler.runAfter(0, ...))
+      vi.advanceTimersByTime(0);
+      await flush(t);
+
+      // Second call - trailing
+      await t.mutation(api.example.e2eTriggerEagerAction, {
+        key: "k1",
+        value: "second",
+      });
+
+      // Should have 1 execution so far (the immediate one)
+      expect(await getLogs(t)).toHaveLength(1);
+
+      // Flush trailing call
+      vi.advanceTimersByTime(11000);
+      await flush(t);
+
+      const logs = await getLogs(t);
+      expect(logs).toHaveLength(2);
+      expect(logs[0].args.value).toBe("first");
+      expect(logs[1].args.value).toBe("second");
     });
   });
 });

@@ -141,7 +141,7 @@ export class Debouncer {
    * @param ctx - The mutation context
    * @param namespace - A logical grouping for debounced calls (e.g., "property-metrics")
    * @param key - A unique identifier within the namespace (e.g., propertyId)
-   * @param functionRef - The function to call (e.g., `internal.metrics.compute`)
+   * @param functionRef - The mutation or action to call (e.g., `internal.metrics.compute`)
    * @param args - Arguments to pass to the function
    * @param options - Override default delay/mode for this call
    * @returns Result indicating if immediate execution happened and when scheduled execution will occur
@@ -150,7 +150,7 @@ export class Debouncer {
     ctx: MutationCtx,
     namespace: string,
     key: string,
-    functionRef: FunctionReference<"mutation", "internal", Args>,
+    functionRef: FunctionReference<"mutation" | "action", "internal", Args>,
     args: Args,
     options?: Partial<DebouncerOptions>,
   ): Promise<ScheduleResult> {
@@ -176,9 +176,9 @@ export class Debouncer {
     });
 
     // For eager mode, if this is the first call, execute immediately
+    // via scheduler to support both mutations and actions uniformly.
     if (result.executed && mode === "eager") {
-      // Execute the function immediately
-      await executeFunction(ctx, functionRef, args);
+      await (ctx.scheduler.runAfter as CallableFunction)(0, functionHandle, args);
     }
 
     return result;
@@ -255,19 +255,6 @@ function getFunctionPath(
     "Could not extract function path from function reference. " +
       "Make sure you're passing a function reference from `internal` or `api`.",
   );
-}
-
-/**
- * Execute a function reference with the given arguments.
- */
-async function executeFunction(
-  ctx: MutationCtx,
-  functionRef: FunctionReference<"mutation", "internal">,
-  args: Record<string, unknown>,
-): Promise<void> {
-  // Execute the mutation with the given arguments
-  // We use type assertion here because the args type is dynamic
-  await (ctx.runMutation as CallableFunction)(functionRef, args);
 }
 
 // Re-export types for convenience

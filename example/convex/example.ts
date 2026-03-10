@@ -1,4 +1,4 @@
-import { internalMutation, mutation, query } from "./_generated/server.js";
+import { internalAction, internalMutation, mutation, query } from "./_generated/server.js";
 import { components, internal } from "./_generated/api.js";
 import {
   Debouncer,
@@ -234,6 +234,66 @@ export const e2eTriggerEager = mutation({
       "e2e-eager",
       args.key,
       internal.example.e2eTarget,
+      { key: args.key, value: args.value },
+    );
+  },
+});
+
+// Action target: calls a mutation to log execution (actions can't write to DB directly)
+export const e2eActionTarget = internalAction({
+  args: {
+    key: v.string(),
+    value: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.runMutation(internal.example.e2eLogFromAction, {
+      key: args.key,
+      value: args.value,
+    });
+    return null;
+  },
+});
+
+export const e2eLogFromAction = internalMutation({
+  args: {
+    key: v.string(),
+    value: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.insert("executionLog", {
+      functionName: "e2eActionTarget",
+      args: { key: args.key, value: args.value },
+      executedAt: Date.now(),
+    });
+    return null;
+  },
+});
+
+export const e2eTriggerSlidingAction = mutation({
+  args: { key: v.string(), value: v.string() },
+  returns: v.object({ executed: v.boolean(), scheduledFor: v.number() }),
+  handler: async (ctx, args): Promise<ScheduleResult> => {
+    return await debouncer.schedule(
+      ctx,
+      "e2e-sliding-action",
+      args.key,
+      internal.example.e2eActionTarget,
+      { key: args.key, value: args.value },
+    );
+  },
+});
+
+export const e2eTriggerEagerAction = mutation({
+  args: { key: v.string(), value: v.string() },
+  returns: v.object({ executed: v.boolean(), scheduledFor: v.number() }),
+  handler: async (ctx, args): Promise<ScheduleResult> => {
+    return await eagerDebouncer.schedule(
+      ctx,
+      "e2e-eager-action",
+      args.key,
+      internal.example.e2eActionTarget,
       { key: args.key, value: args.value },
     );
   },
