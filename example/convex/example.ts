@@ -281,7 +281,11 @@ export const getDebounceStatus = query({
     }),
   ),
   handler: async (ctx, args) => {
-    return await debouncer.status(ctx, args.namespace, args.key);
+    return await debouncer.status(
+      ctx as Parameters<typeof debouncer.status>[0],
+      args.namespace,
+      args.key,
+    );
   },
 });
 
