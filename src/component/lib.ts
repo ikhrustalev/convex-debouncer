@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import type { FunctionHandle } from "convex/server";
 import { internalMutation, mutation, query } from "./_generated/server.js";
 import { internal } from "./_generated/api.js";
 import { modeValidator } from "./schema.js";
@@ -17,6 +18,7 @@ export const schedule = mutation({
     mode: modeValidator,
     delay: v.number(),
     functionPath: v.string(),
+    functionHandle: v.string(),
     functionArgs: v.any(),
   },
   returns: v.object({
@@ -95,6 +97,7 @@ export const schedule = mutation({
         mode: args.mode,
         delay: args.delay,
         functionPath: args.functionPath,
+        functionHandle: args.functionHandle,
         functionArgs: args.functionArgs,
         scheduledFor,
         retriggerCount: 1,
@@ -122,6 +125,7 @@ export const schedule = mutation({
         mode: args.mode,
         delay: args.delay,
         functionPath: args.functionPath,
+        functionHandle: args.functionHandle,
         functionArgs: args.functionArgs,
         scheduledFor,
         retriggerCount: 1,
@@ -215,6 +219,8 @@ export const cancel = mutation({
 
 /**
  * Internal mutation called by the scheduler to execute the debounced function.
+ * Uses the stored function handle to invoke the target function across
+ * component boundaries via ctx.scheduler.runAfter.
  */
 export const execute = internalMutation({
   args: {
@@ -222,8 +228,6 @@ export const execute = internalMutation({
   },
   returns: v.object({
     executed: v.boolean(),
-    functionPath: v.optional(v.string()),
-    functionArgs: v.optional(v.any()),
   }),
   handler: async (ctx, args) => {
     const call = await ctx.db.get(args.callId);
@@ -243,14 +247,15 @@ export const execute = internalMutation({
     // Clean up the record
     await ctx.db.delete(call._id);
 
-    // Return the function details for the caller to execute
-    // Note: The actual function execution happens in the action layer
-    // because mutations can't call arbitrary functions by path
-    return {
-      executed: true,
-      functionPath: call.functionPath,
-      functionArgs: call.functionArgs,
-    };
+    // Execute the target function using the stored function handle.
+    // Function handles work across component boundaries, allowing the
+    // component to invoke functions defined in the parent app.
+    const handle = call.functionHandle as FunctionHandle<
+      "mutation" | "action"
+    >;
+    await ctx.scheduler.runAfter(0, handle, call.functionArgs);
+
+    return { executed: true };
   },
 });
 

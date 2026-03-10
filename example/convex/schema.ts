@@ -1,5 +1,11 @@
-import { defineSchema } from "convex/server";
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
 
 export default defineSchema({
-  // Any tables used by the example app go here.
+  // Track function executions for e2e testing
+  executionLog: defineTable({
+    functionName: v.string(),
+    args: v.any(),
+    executedAt: v.number(),
+  }),
 });

@@ -23,6 +23,7 @@ export default defineSchema({
 
     // Target function
     functionPath: v.string(),
+    functionHandle: v.string(),
     functionArgs: v.any(),
 
     // Tracking

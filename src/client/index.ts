@@ -1,8 +1,9 @@
-import type {
-  FunctionReference,
-  GenericDataModel,
-  GenericMutationCtx,
-  GenericQueryCtx,
+import {
+  createFunctionHandle,
+  type FunctionReference,
+  type GenericDataModel,
+  type GenericMutationCtx,
+  type GenericQueryCtx,
 } from "convex/server";
 
 /**
@@ -71,6 +72,7 @@ export interface DebouncerComponentApi {
         mode: DebouncerMode;
         delay: number;
         functionPath: string;
+        functionHandle: string;
         functionArgs: unknown;
       },
       { executed: boolean; scheduledFor: number }
@@ -155,9 +157,13 @@ export class Debouncer {
     const delay = options?.delay ?? this.defaultDelay;
     const mode = options?.mode ?? this.defaultMode;
 
-    // Get the function path from the function reference
-    // FunctionReference has a hidden property that contains the path
+    // Get the function path from the function reference (for debugging)
     const functionPath = getFunctionPath(functionRef);
+
+    // Create a function handle that can be used across component boundaries.
+    // This allows the component's scheduled execute mutation to invoke
+    // the target function in the parent app's context.
+    const functionHandle = await createFunctionHandle(functionRef);
 
     const result = await ctx.runMutation(this.component.lib.schedule, {
       namespace,
@@ -165,6 +171,7 @@ export class Debouncer {
       mode,
       delay,
       functionPath,
+      functionHandle,
       functionArgs: args,
     });
 

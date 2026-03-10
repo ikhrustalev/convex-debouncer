@@ -178,6 +178,87 @@ export const processBatch = internalMutation({
 });
 
 // ============================================================================
+// E2E test helpers - target mutations that write to DB as proof of execution
+// ============================================================================
+
+export const e2eTarget = internalMutation({
+  args: {
+    key: v.string(),
+    value: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.insert("executionLog", {
+      functionName: "e2eTarget",
+      args: { key: args.key, value: args.value },
+      executedAt: Date.now(),
+    });
+    return null;
+  },
+});
+
+export const e2eTriggerSliding = mutation({
+  args: { key: v.string(), value: v.string() },
+  returns: v.object({ executed: v.boolean(), scheduledFor: v.number() }),
+  handler: async (ctx, args): Promise<ScheduleResult> => {
+    return await debouncer.schedule(
+      ctx,
+      "e2e-sliding",
+      args.key,
+      internal.example.e2eTarget,
+      { key: args.key, value: args.value },
+    );
+  },
+});
+
+export const e2eTriggerFixed = mutation({
+  args: { key: v.string(), value: v.string() },
+  returns: v.object({ executed: v.boolean(), scheduledFor: v.number() }),
+  handler: async (ctx, args): Promise<ScheduleResult> => {
+    return await fixedDebouncer.schedule(
+      ctx,
+      "e2e-fixed",
+      args.key,
+      internal.example.e2eTarget,
+      { key: args.key, value: args.value },
+    );
+  },
+});
+
+export const e2eTriggerEager = mutation({
+  args: { key: v.string(), value: v.string() },
+  returns: v.object({ executed: v.boolean(), scheduledFor: v.number() }),
+  handler: async (ctx, args): Promise<ScheduleResult> => {
+    return await eagerDebouncer.schedule(
+      ctx,
+      "e2e-eager",
+      args.key,
+      internal.example.e2eTarget,
+      { key: args.key, value: args.value },
+    );
+  },
+});
+
+export const getExecutionLog = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      functionName: v.string(),
+      args: v.any(),
+      executedAt: v.number(),
+    }),
+  ),
+  handler: async (ctx) => {
+    const logs = await ctx.db.query("executionLog").collect();
+    return logs.map((l) => ({
+      functionName: l.functionName,
+      args: l.args,
+      executedAt: l.executedAt,
+    }));
+  },
+});
+
+// ============================================================================
 // Status and Cancellation
 // ============================================================================
 

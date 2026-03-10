@@ -23,6 +23,7 @@ describe("debouncer component", () => {
         mode: "sliding",
         delay: 1000,
         functionPath: "internal.test.compute",
+        functionHandle: "function://;internal.test.compute",
         functionArgs: { id: "123" },
       });
 
@@ -49,6 +50,7 @@ describe("debouncer component", () => {
         mode: "fixed",
         delay: 1000,
         functionPath: "internal.test.compute",
+        functionHandle: "function://;internal.test.compute",
         functionArgs: { id: "123" },
       });
 
@@ -65,6 +67,7 @@ describe("debouncer component", () => {
         mode: "eager",
         delay: 1000,
         functionPath: "internal.test.compute",
+        functionHandle: "function://;internal.test.compute",
         functionArgs: { id: "123" },
       });
 
@@ -92,6 +95,7 @@ describe("debouncer component", () => {
         mode: "sliding",
         delay: 1000,
         functionPath: "internal.test.compute",
+        functionHandle: "function://;internal.test.compute",
         functionArgs: { value: 1 },
       });
 
@@ -107,6 +111,7 @@ describe("debouncer component", () => {
         mode: "sliding",
         delay: 1000,
         functionPath: "internal.test.compute",
+        functionHandle: "function://;internal.test.compute",
         functionArgs: { value: 2 },
       });
 
@@ -133,6 +138,7 @@ describe("debouncer component", () => {
         mode: "fixed",
         delay: 1000,
         functionPath: "internal.test.compute",
+        functionHandle: "function://;internal.test.compute",
         functionArgs: { value: 1 },
       });
 
@@ -148,6 +154,7 @@ describe("debouncer component", () => {
         mode: "fixed",
         delay: 1000,
         functionPath: "internal.test.compute",
+        functionHandle: "function://;internal.test.compute",
         functionArgs: { value: 2 },
       });
 
@@ -174,6 +181,7 @@ describe("debouncer component", () => {
         mode: "eager",
         delay: 1000,
         functionPath: "internal.test.compute",
+        functionHandle: "function://;internal.test.compute",
         functionArgs: { value: 1 },
       });
 
@@ -186,6 +194,7 @@ describe("debouncer component", () => {
         mode: "eager",
         delay: 1000,
         functionPath: "internal.test.compute",
+        functionHandle: "function://;internal.test.compute",
         functionArgs: { value: 2 },
       });
 
@@ -210,6 +219,7 @@ describe("debouncer component", () => {
         mode: "eager",
         delay: 1000,
         functionPath: "internal.test.compute",
+        functionHandle: "function://;internal.test.compute",
         functionArgs: { value: 1 },
       });
 
@@ -220,6 +230,7 @@ describe("debouncer component", () => {
         mode: "eager",
         delay: 1000,
         functionPath: "internal.test.compute",
+        functionHandle: "function://;internal.test.compute",
         functionArgs: { value: 2 },
       });
 
@@ -230,6 +241,7 @@ describe("debouncer component", () => {
         mode: "eager",
         delay: 1000,
         functionPath: "internal.test.compute",
+        functionHandle: "function://;internal.test.compute",
         functionArgs: { value: 3 },
       });
 
@@ -269,6 +281,7 @@ describe("debouncer component", () => {
         mode: "sliding",
         delay: 1000,
         functionPath: "internal.test.compute",
+        functionHandle: "function://;internal.test.compute",
         functionArgs: { id: "123" },
       });
 
@@ -294,6 +307,7 @@ describe("debouncer component", () => {
         mode: "sliding",
         delay: 1000,
         functionPath: "internal.test.compute",
+        functionHandle: "function://;internal.test.compute",
         functionArgs: { id: "123" },
       });
 
@@ -334,6 +348,7 @@ describe("debouncer component", () => {
         mode: "fixed",
         delay: 100,
         functionPath: "internal.test.compute",
+        functionHandle: "function://;internal.test.compute",
         functionArgs: { id: "123" },
       });
 
@@ -358,6 +373,7 @@ describe("debouncer component", () => {
         mode: "eager",
         delay: 100,
         functionPath: "internal.test.compute",
+        functionHandle: "function://;internal.test.compute",
         functionArgs: { id: "123" },
       });
 
@@ -385,6 +401,7 @@ describe("debouncer component", () => {
         mode: "eager",
         delay: 100,
         functionPath: "internal.test.compute",
+        functionHandle: "function://;internal.test.compute",
         functionArgs: { value: 1 },
       });
 
@@ -395,6 +412,7 @@ describe("debouncer component", () => {
         mode: "eager",
         delay: 100,
         functionPath: "internal.test.compute",
+        functionHandle: "function://;internal.test.compute",
         functionArgs: { value: 2 },
       });
 
@@ -428,6 +446,7 @@ describe("debouncer component", () => {
         mode: "sliding",
         delay: 1000,
         functionPath: "internal.metrics.compute",
+        functionHandle: "function://;internal.metrics.compute",
         functionArgs: { id: "123" },
       });
 
@@ -437,6 +456,7 @@ describe("debouncer component", () => {
         mode: "fixed",
         delay: 2000,
         functionPath: "internal.notifications.send",
+        functionHandle: "function://;internal.notifications.send",
         functionArgs: { userId: "456" },
       });
 
@@ -462,6 +482,7 @@ describe("debouncer component", () => {
         mode: "sliding",
         delay: 1000,
         functionPath: "internal.metrics.compute",
+        functionHandle: "function://;internal.metrics.compute",
         functionArgs: { propertyId: "1" },
       });
 
@@ -471,6 +492,7 @@ describe("debouncer component", () => {
         mode: "sliding",
         delay: 1000,
         functionPath: "internal.metrics.compute",
+        functionHandle: "function://;internal.metrics.compute",
         functionArgs: { propertyId: "2" },
       });
 
