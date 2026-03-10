@@ -1,7 +1,10 @@
 {
   "name": "@ikhrustalev/convex-debouncer",
   "description": "A debouncer component for Convex.",
-  "repository": "github:ikhrustalev/convex-debouncer",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ikhrustalev/convex-debouncer.git"
+  },
   "homepage": "https://github.com/ikhrustalev/convex-debouncer#readme",
   "bugs": {
     "url": "https://github.com/ikhrustalev/convex-debouncer/issues"
