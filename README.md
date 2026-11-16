@@ -89,23 +89,28 @@ Call 2 ──▶ Update args (timer unchanged)│
            Execute with Call 2's args ◀─┘
 ```
 
-Best for: Batch processing, rate-limited APIs, periodic syncs
+Best for: Batch processing, rate-limited APIs. It runs once per burst, not on a repeating schedule.
 
 ### Eager Mode
 
-Execute immediately on first call, then queue a trailing call with the latest arguments if more calls come in.
+Execute immediately on first call, then queue a trailing call with the latest arguments if more calls come in. The target runs at most once per delay window: a trailing run starts a new cooldown, and calls during it queue another trailing run.
 
 ```
-Call 1 ──▶ Execute immediately + start 5s timer ──┐
-           ↓ 1s later                              │
-Call 2 ──▶ Queue trailing (update args)           │
-           ↓ 2s later                              │
-Call 3 ──▶ Queue trailing (update to latest args) │
-           ↓ timer ends                            │
-           Execute with Call 3's args ◀────────────┘
+Call 1 ──▶ Execute immediately + start 5s cooldown ──┐
+           ↓ 1s later                                 │
+Call 2 ──▶ Queue trailing (update args)              │
+           ↓ 2s later                                 │
+Call 3 ──▶ Queue trailing (update to latest args)    │
+           ↓ cooldown ends                            │
+           Execute with Call 3's args ◀───────────────┘
+           + start a new 5s cooldown
 ```
 
 Best for: Real-time collaboration, AI responses (immediate feedback + final state)
+
+### Retriggers
+
+The first call for a namespace and key sets its mode. Until that call fires, later calls follow that mode, even if they pass a different `mode`. Every retrigger replaces both the target function and its arguments, so the latest call always wins.
 
 ## API Reference
 
@@ -124,10 +129,10 @@ Schedule a debounced function call.
 
 ```ts
 const result = await debouncer.schedule(
-  ctx,                           // Mutation context
+  ctx,                           // Mutation or action context
   "namespace",                   // Logical grouping
   "key",                         // Unique identifier within namespace
-  internal.myModule.myFunction,  // Function reference to call
+  internal.myModule.myFunction,  // Mutation or action to call (internal or public)
   { arg1: "value" },             // Arguments for the function
   { delay: 3000, mode: "fixed" } // Optional: override defaults
 );
@@ -135,16 +140,18 @@ const result = await debouncer.schedule(
 // result: { executed: boolean, scheduledFor: number }
 ```
 
+`executed` is true when this call started an eager leading run. The target is scheduled to run as soon as the current mutation commits. `scheduledFor` is when the key's timer fires next. `delay` must be a non-negative finite number.
+
 ### status()
 
-Check the status of a pending debounced call.
+Check the status of a debounced key.
 
 ```ts
 const status = await debouncer.status(ctx, "namespace", "key");
 
-// status: null (if no pending call) or:
+// status: null (if the key is idle) or:
 // {
-//   pending: true,
+//   pending: true,             // false for an eager cooldown with nothing queued
 //   scheduledFor: 1234567890,  // Unix timestamp
 //   retriggerCount: 3,         // Number of times schedule was called
 //   mode: "sliding",
@@ -154,11 +161,11 @@ const status = await debouncer.status(ctx, "namespace", "key");
 
 ### cancel()
 
-Cancel a pending debounced call.
+Cancel a debounced key. This drops any queued call and ends an eager cooldown.
 
 ```ts
 const cancelled = await debouncer.cancel(ctx, "namespace", "key");
-// cancelled: true if a call was cancelled, false if nothing was pending
+// cancelled: true if the key was active, false if it was idle
 ```
 
 ## Examples
@@ -205,17 +212,17 @@ export const onUserMessage = mutation({
       { conversationId: args.conversationId }
     );
 
-    // result.executed is true for the first message (immediate execution)
-    // Subsequent messages will queue a trailing execution
+    // result.executed is true for the first message (leading run)
+    // Messages during the cooldown queue one trailing run
   },
 });
 ```
 
-### Fixed Interval Batch Processing
+### Batch Processing
 
 ```ts
 const debouncer = new Debouncer(components.debouncer, {
-  delay: 30000,   // Process every 30 seconds
+  delay: 30000,   // Process 30 seconds after the first item
   mode: "fixed",  // Timer doesn't extend
 });
 
@@ -237,14 +244,14 @@ export const queueItem = mutation({
 ## Development
 
 ```sh
-npm i
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 Run tests:
 
 ```sh
-npm test
+pnpm test
 ```
 
 ## License

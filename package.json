@@ -20,11 +20,11 @@
     "dev": "run-p -r 'dev:*'",
     "dev:backend": "convex dev --typecheck-components",
     "dev:frontend": "cd example && vite --clearScreen false",
-    "dev:build": "chokidar 'tsconfig*.json' 'src/**/*.ts' -i '**/*.test.ts' -c 'npm run build:codegen' --initial",
-    "predev": "path-exists .env.local dist || (npm run build && convex dev --once)",
+    "dev:build": "chokidar 'tsconfig*.json' 'src/**/*.ts' -i '**/*.test.ts' -c 'pnpm run build:codegen' --initial",
+    "predev": "path-exists .env.local dist || (pnpm run build && convex dev --once)",
     "build": "tsc --project ./tsconfig.build.json",
-    "build:codegen": "npx convex codegen --component-dir ./src/component && npm run build",
-    "build:clean": "rm -rf dist *.tsbuildinfo && npm run build:codegen",
+    "build:codegen": "convex codegen --component-dir ./src/component && pnpm run build",
+    "build:clean": "rm -rf dist *.tsbuildinfo && pnpm run build:codegen",
     "typecheck": "tsc --noEmit && tsc -p example && tsc -p example/convex",
     "lint": "eslint .",
     "all": "run-p -r 'dev:*' 'test:watch'",
@@ -32,10 +32,10 @@
     "test:watch": "vitest --typecheck --clearScreen false",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:coverage": "vitest run --coverage --coverage.reporter=text",
-    "preversion": "npm ci && npm run build:clean && run-p test lint typecheck",
-    "alpha": "npm version prerelease --preid alpha && npm publish --tag alpha && git push --follow-tags",
-    "release": "npm version patch && npm publish && git push --follow-tags",
-    "version": "vim -c 'normal o' -c 'normal o## '$npm_package_version CHANGELOG.md && prettier -w CHANGELOG.md && git add CHANGELOG.md"
+    "preversion": "pnpm install --frozen-lockfile && pnpm run build:clean && run-p test lint typecheck",
+    "alpha": "pnpm version prerelease --preid alpha && pnpm publish --tag alpha && git push --follow-tags",
+    "release": "pnpm version patch && pnpm publish && git push --follow-tags",
+    "version": "prettier -w CHANGELOG.md && git add CHANGELOG.md"
   },
   "files": [
     "dist",
@@ -46,10 +46,6 @@
     ".": {
       "types": "./dist/client/index.d.ts",
       "default": "./dist/client/index.js"
-    },
-    "./react": {
-      "types": "./dist/react/index.d.ts",
-      "default": "./dist/react/index.js"
     },
     "./test": "./src/test.ts",
     "./_generated/component.js": {
@@ -68,8 +64,7 @@
     }
   },
   "peerDependencies": {
-    "convex": "^1.29.3",
-    "react": "^18.3.1 || ^19.0.0"
+    "convex": "^1.29.3"
   },
   "devDependencies": {
     "@convex-dev/eslint-plugin": "^1.1.1",
@@ -81,8 +76,8 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "chokidar-cli": "3.0.0",
-    "convex": "1.31.0",
-    "convex-test": "0.0.40",
+    "convex": "1.50.0",
+    "convex-test": "0.0.71",
     "cpy-cli": "^6.0.0",
     "eslint": "9.39.1",
     "eslint-plugin-react": "^7.37.5",
@@ -101,5 +96,6 @@
     "vitest": "4.0.17"
   },
   "types": "./dist/client/index.d.ts",
-  "module": "./dist/client/index.js"
+  "module": "./dist/client/index.js",
+  "packageManager": "pnpm@12.16.1"
 }

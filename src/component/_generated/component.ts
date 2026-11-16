@@ -24,31 +24,39 @@ import type { FunctionReference } from "convex/server";
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
     lib: {
-      add: FunctionReference<
+      cancel: FunctionReference<
         "mutation",
         "internal",
-        { targetId: string; text: string; userId: string },
-        string,
+        { key: string; namespace: string },
+        boolean,
         Name
       >;
-      list: FunctionReference<
+      schedule: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          delay: number;
+          functionArgs: Record<string, any>;
+          functionHandle: string;
+          functionPath: string;
+          key: string;
+          mode: "eager" | "fixed" | "sliding";
+          namespace: string;
+        },
+        { executed: boolean; scheduledFor: number },
+        Name
+      >;
+      status: FunctionReference<
         "query",
         "internal",
-        { limit?: number; targetId: string },
-        Array<{
-          _creationTime: number;
-          _id: string;
-          targetId: string;
-          text: string;
-          userId: string;
-        }>,
-        Name
-      >;
-      translate: FunctionReference<
-        "action",
-        "internal",
-        { baseUrl: string; commentId: string },
-        string,
+        { key: string; namespace: string },
+        null | {
+          hasTrailingCall: boolean;
+          mode: "eager" | "fixed" | "sliding";
+          pending: boolean;
+          retriggerCount: number;
+          scheduledFor: number;
+        },
         Name
       >;
     };

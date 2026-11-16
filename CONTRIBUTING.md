@@ -3,16 +3,16 @@
 ## Running locally
 
 ```sh
-npm i
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 ## Testing
 
 ```sh
-npm ci
-npm run clean
-npm run typecheck
-npm run lint
-npm run test
+pnpm install --frozen-lockfile
+pnpm run build:clean
+pnpm run typecheck
+pnpm run lint
+pnpm run test
 ```

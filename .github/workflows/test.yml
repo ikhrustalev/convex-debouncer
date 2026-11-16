@@ -18,21 +18,22 @@ jobs:
     steps:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
 
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
       - name: Node setup
         uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6
         with:
-          cache-dependency-path: package.json
           node-version: "24.x"
-          cache: "npm"
+          cache: "pnpm"
 
       - name: Install and build
         run: |
-          npm i
-          npm run build
+          pnpm install --frozen-lockfile
+          pnpm run build
       - name: Publish package for testing branch
-        run: npx pkg-pr-new publish || echo "Have you set up pkg-pr-new for this repo?"
+        run: pnpm exec pkg-pr-new publish || echo "Have you set up pkg-pr-new for this repo?"
       - name: Test
         run: |
-          npm run test
-          npm run typecheck
-          npm run lint
+          pnpm run test
+          pnpm run typecheck
+          pnpm run lint

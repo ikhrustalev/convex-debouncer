@@ -246,11 +246,8 @@ describe("debouncer component", () => {
       });
 
       // Verify latest args are stored
-      const callDetails = await t.query(api.lib.getCallDetails, {
-        namespace: "test",
-        key: "key1",
-      });
-      expect(callDetails?.functionArgs).toEqual({ value: 3 });
+      const row = await t.run((ctx) => ctx.db.query("debouncedCalls").first());
+      expect(row?.functionArgs).toEqual({ value: 3 });
 
       const status = await t.query(api.lib.status, {
         namespace: "test",
@@ -391,7 +388,8 @@ describe("debouncer component", () => {
       expect(status).toBeNull();
     });
 
-    test("eager mode with trailing call executes with latest args", async () => {
+    // The target's args are checked end to end in example/convex/example.test.ts.
+    test("eager mode cleans up after the trailing run and its cooldown", async () => {
       const t = initConvexTest();
 
       // First call
@@ -427,7 +425,7 @@ describe("debouncer component", () => {
       vi.advanceTimersByTime(200);
       await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-      // Should be cleaned up after execution
+      // Trailing run, then a new cooldown with nothing queued, then cleanup.
       const statusAfter = await t.query(api.lib.status, {
         namespace: "test",
         key: "key1",
@@ -525,6 +523,50 @@ describe("debouncer component", () => {
 
       expect(status1After).toBeNull();
       expect(status2After).not.toBeNull();
+    });
+  });
+
+  describe("recovery and validation", () => {
+    const call = (functionArgs: Record<string, unknown>) => ({
+      namespace: "test",
+      key: "key1",
+      mode: "fixed" as const,
+      delay: 1000,
+      functionPath: "internal.test.compute",
+      functionHandle: "function://;internal.test.compute",
+      functionArgs,
+    });
+
+    test("eager key in cooldown with nothing queued is not pending", async () => {
+      const t = initConvexTest();
+      await t.mutation(api.lib.schedule, { ...call({}), mode: "eager" });
+
+      const status = await t.query(api.lib.status, {
+        namespace: "test",
+        key: "key1",
+      });
+      expect(status).toMatchObject({ pending: false, hasTrailingCall: false });
+    });
+
+    test("a key whose timer died is scheduled afresh", async () => {
+      const t = initConvexTest();
+      const first = await t.mutation(api.lib.schedule, call({ value: 1 }));
+
+      // Simulate a failed or externally canceled `execute`.
+      await t.run(async (ctx) => {
+        const row = await ctx.db.query("debouncedCalls").first();
+        await ctx.scheduler.cancel(row!.scheduledFunctionId!);
+      });
+
+      vi.advanceTimersByTime(500);
+      const second = await t.mutation(api.lib.schedule, call({ value: 2 }));
+      expect(second.scheduledFor).toBe(first.scheduledFor + 500);
+
+      const status = await t.query(api.lib.status, {
+        namespace: "test",
+        key: "key1",
+      });
+      expect(status?.retriggerCount).toBe(1);
     });
   });
 });

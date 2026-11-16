@@ -1,10 +1,12 @@
 import {
   createFunctionHandle,
+  getFunctionName,
   type FunctionReference,
   type GenericDataModel,
   type GenericMutationCtx,
   type GenericQueryCtx,
 } from "convex/server";
+import type { ComponentApi } from "../component/_generated/component.js";
 
 /**
  * Debouncing modes:
@@ -47,7 +49,8 @@ export interface DebouncerStatus {
  */
 export interface ScheduleResult {
   /**
-   * Whether the function was executed immediately (eager mode first call).
+   * True when this call started an eager leading run. The target is scheduled
+   * to run right after the current mutation commits; it has not run yet.
    */
   executed: boolean;
 
@@ -58,42 +61,17 @@ export interface ScheduleResult {
 }
 
 /**
- * The component API type for the debouncer.
- * This is a minimal type that matches what the component exports.
+ * The debouncer component's API, i.e. the type of `components.debouncer`.
  */
-export interface DebouncerComponentApi {
-  lib: {
-    schedule: FunctionReference<
-      "mutation",
-      "internal",
-      {
-        namespace: string;
-        key: string;
-        mode: DebouncerMode;
-        delay: number;
-        functionPath: string;
-        functionHandle: string;
-        functionArgs: unknown;
-      },
-      { executed: boolean; scheduledFor: number }
-    >;
-    status: FunctionReference<
-      "query",
-      "internal",
-      { namespace: string; key: string },
-      DebouncerStatus | null
-    >;
-    cancel: FunctionReference<
-      "mutation",
-      "internal",
-      { namespace: string; key: string },
-      boolean
-    >;
-  };
-}
+export type DebouncerComponentApi = ComponentApi;
 
-type MutationCtx = GenericMutationCtx<GenericDataModel>;
-type QueryCtx = GenericQueryCtx<GenericDataModel>;
+// Narrow ctx types so any app's typed ctx is accepted.
+type RunQueryCtx = {
+  runQuery: GenericQueryCtx<GenericDataModel>["runQuery"];
+};
+type RunMutationCtx = {
+  runMutation: GenericMutationCtx<GenericDataModel>["runMutation"];
+};
 
 /**
  * A server-side debouncer for Convex functions.
@@ -144,44 +122,35 @@ export class Debouncer {
    * @param functionRef - The mutation or action to call (e.g., `internal.metrics.compute`)
    * @param args - Arguments to pass to the function
    * @param options - Override default delay/mode for this call
-   * @returns Result indicating if immediate execution happened and when scheduled execution will occur
+   * @returns Whether a leading run was scheduled, and when the next timer fires
    */
   async schedule<Args extends Record<string, unknown>>(
-    ctx: MutationCtx,
+    ctx: RunMutationCtx,
     namespace: string,
     key: string,
-    functionRef: FunctionReference<"mutation" | "action", "internal", Args>,
+    functionRef: FunctionReference<
+      "mutation" | "action",
+      "public" | "internal",
+      Args
+    >,
     args: Args,
     options?: Partial<DebouncerOptions>,
   ): Promise<ScheduleResult> {
     const delay = options?.delay ?? this.defaultDelay;
     const mode = options?.mode ?? this.defaultMode;
 
-    // Get the function path from the function reference (for debugging)
-    const functionPath = getFunctionPath(functionRef);
-
-    // Create a function handle that can be used across component boundaries.
-    // This allows the component's scheduled execute mutation to invoke
-    // the target function in the parent app's context.
+    // The handle lets the component invoke the target across the component
+    // boundary. The path is stored for debugging only.
     const functionHandle = await createFunctionHandle(functionRef);
-
-    const result = await ctx.runMutation(this.component.lib.schedule, {
+    return await ctx.runMutation(this.component.lib.schedule, {
       namespace,
       key,
       mode,
       delay,
-      functionPath,
+      functionPath: describeFunction(functionRef, functionHandle),
       functionHandle,
       functionArgs: args,
     });
-
-    // For eager mode, if this is the first call, execute immediately
-    // via scheduler to support both mutations and actions uniformly.
-    if (result.executed && mode === "eager") {
-      await (ctx.scheduler.runAfter as CallableFunction)(0, functionHandle, args);
-    }
-
-    return result;
   }
 
   /**
@@ -193,7 +162,7 @@ export class Debouncer {
    * @returns Status object or null if no pending call exists
    */
   async status(
-    ctx: QueryCtx | MutationCtx,
+    ctx: RunQueryCtx,
     namespace: string,
     key: string,
   ): Promise<DebouncerStatus | null> {
@@ -212,7 +181,7 @@ export class Debouncer {
    * @returns True if a call was cancelled, false if no pending call existed
    */
   async cancel(
-    ctx: MutationCtx,
+    ctx: RunMutationCtx,
     namespace: string,
     key: string,
   ): Promise<boolean> {
@@ -223,38 +192,16 @@ export class Debouncer {
   }
 }
 
-// Symbol used by Convex to store function name on FunctionReference
-const functionNameSymbol = Symbol.for("functionName");
-
-/**
- * Extract the function path from a FunctionReference.
- * Uses the internal functionName symbol that Convex uses.
- */
-function getFunctionPath(
-  functionRef: FunctionReference<"mutation" | "action", "internal">,
+function describeFunction(
+  functionRef: FunctionReference<"mutation" | "action", "public" | "internal">,
+  functionHandle: string,
 ): string {
-  // Legacy path: function reference is already a string
-  if (typeof functionRef === "string") {
-    return functionRef;
+  try {
+    return getFunctionName(functionRef);
+  } catch {
+    // References into other components have no plain name.
+    return functionHandle;
   }
-
-  // Access the function name via the Convex symbol
-  const ref = functionRef as unknown as Record<symbol, string>;
-  const name = ref[functionNameSymbol];
-  if (name) {
-    return name;
-  }
-
-  // Fallback: try to extract from string representation
-  const str = String(functionRef);
-  if (str && str !== "[object Object]") {
-    return str;
-  }
-
-  throw new Error(
-    "Could not extract function path from function reference. " +
-      "Make sure you're passing a function reference from `internal` or `api`.",
-  );
 }
 
 // Re-export types for convenience

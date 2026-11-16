@@ -1,30 +1,27 @@
-import { internalAction, internalMutation, mutation, query } from "./_generated/server.js";
-import { components, internal } from "./_generated/api.js";
 import {
-  Debouncer,
-  type DebouncerComponentApi,
-  type ScheduleResult,
-} from "@ikhrustalev/convex-debouncer";
+  internalAction,
+  internalMutation,
+  mutation,
+  query,
+} from "./_generated/server.js";
+import { components, internal } from "./_generated/api.js";
+import { Debouncer, type ScheduleResult } from "@ikhrustalev/convex-debouncer";
 import { v } from "convex/values";
-
-// Type assertion needed because generated types may be stale during development.
-// After running `npx convex dev`, the types will be correctly inferred.
-const debouncerComponent = components.debouncer as unknown as DebouncerComponentApi;
 
 // Create a Debouncer instance with default configuration
 // This can be used across multiple mutations in your app
-const debouncer = new Debouncer(debouncerComponent, {
+const debouncer = new Debouncer(components.debouncer, {
   delay: 5000, // 5 second delay
   mode: "sliding", // Reset timer on each call
 });
 
 // Alternative configurations for different use cases:
-const eagerDebouncer = new Debouncer(debouncerComponent, {
+const eagerDebouncer = new Debouncer(components.debouncer, {
   delay: 10000, // 10 second cooldown
   mode: "eager", // Execute immediately, then queue trailing if needed
 });
 
-const fixedDebouncer = new Debouncer(debouncerComponent, {
+const fixedDebouncer = new Debouncer(components.debouncer, {
   delay: 3000, // 3 second fixed delay
   mode: "fixed", // Timer stays fixed from first call
 });
@@ -127,7 +124,9 @@ export const generateAIResponse = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    console.log(`Generating AI response for conversation: ${args.conversationId}`);
+    console.log(
+      `Generating AI response for conversation: ${args.conversationId}`,
+    );
     return null;
   },
 });
@@ -137,8 +136,8 @@ export const generateAIResponse = internalMutation({
 // ============================================================================
 
 /**
- * Queue items for batch processing. Fixed mode ensures we process
- * at regular intervals regardless of how many items are added.
+ * Queue items for batch processing. Fixed mode processes once, a fixed delay
+ * after the first item, however many items arrive in between.
  */
 export const queueForBatchProcessing = mutation({
   args: {
@@ -299,6 +298,33 @@ export const e2eTriggerEagerAction = mutation({
   },
 });
 
+// Generic trigger with per-call overrides, for edge-case tests.
+export const e2eTrigger = mutation({
+  args: {
+    namespace: v.string(),
+    key: v.string(),
+    value: v.string(),
+    target: v.union(v.literal("mutation"), v.literal("action")),
+    mode: v.optional(
+      v.union(v.literal("eager"), v.literal("fixed"), v.literal("sliding")),
+    ),
+    delay: v.optional(v.number()),
+  },
+  returns: v.object({ executed: v.boolean(), scheduledFor: v.number() }),
+  handler: async (ctx, args): Promise<ScheduleResult> => {
+    return await debouncer.schedule(
+      ctx,
+      args.namespace,
+      args.key,
+      args.target === "action"
+        ? internal.example.e2eActionTarget
+        : internal.example.e2eTarget,
+      { key: args.key, value: args.value },
+      { mode: args.mode, delay: args.delay },
+    );
+  },
+});
+
 export const getExecutionLog = query({
   args: {},
   returns: v.array(
@@ -336,16 +362,16 @@ export const getDebounceStatus = query({
       pending: v.boolean(),
       scheduledFor: v.number(),
       retriggerCount: v.number(),
-      mode: v.union(v.literal("eager"), v.literal("fixed"), v.literal("sliding")),
+      mode: v.union(
+        v.literal("eager"),
+        v.literal("fixed"),
+        v.literal("sliding"),
+      ),
       hasTrailingCall: v.boolean(),
     }),
   ),
   handler: async (ctx, args) => {
-    return await debouncer.status(
-      ctx as Parameters<typeof debouncer.status>[0],
-      args.namespace,
-      args.key,
-    );
+    return await debouncer.status(ctx, args.namespace, args.key);
   },
 });
 

@@ -30,6 +30,17 @@ describe("debouncer e2e", () => {
     await t.finishAllScheduledFunctions(vi.runAllTimers);
   }
 
+  // Advance the clock, then run everything that is due without firing
+  // later timers. Targets are scheduled at 0ms from `execute`, so they need
+  // an extra tick.
+  async function advance(t: ReturnType<typeof initConvexTest>, ms: number) {
+    vi.advanceTimersByTime(ms);
+    for (let i = 0; i < 3; i++) {
+      await t.finishInProgressScheduledFunctions();
+      vi.advanceTimersByTime(0);
+    }
+  }
+
   // ==========================================================================
   // Sliding mode (delay: 5000ms)
   // ==========================================================================
@@ -73,12 +84,13 @@ describe("debouncer e2e", () => {
         value: "second",
       });
 
-      vi.advanceTimersByTime(3000); // 6s total, but only 3s since last call
-      await flush(t);
+      // 6s after the first call: the original 5s timer would have fired.
+      await advance(t, 3000);
+      expect(await getLogs(t)).toHaveLength(0);
 
-      // Should NOT have executed yet (only 3s since last call, need 5s)
-      // Actually after flush, all timers are run, so let's check args
-      // The key test: only the latest args should be used
+      // 5s after the second call.
+      await advance(t, 2100);
+
       const logs = await getLogs(t);
       expect(logs).toHaveLength(1);
       expect(logs[0].args).toEqual({ key: "k1", value: "second" });
@@ -382,17 +394,20 @@ describe("debouncer e2e", () => {
         value: "first",
       });
 
-      // Flush immediate execution (via scheduler.runAfter(0, ...))
+      // Run only the leading call; the cooldown timer stays pending.
       vi.advanceTimersByTime(0);
-      await flush(t);
+      await t.finishInProgressScheduledFunctions();
+      expect((await getStatus(t, "e2e-eager-action", "k1"))?.pending).toBe(
+        false,
+      );
 
       // Second call - trailing
-      await t.mutation(api.example.e2eTriggerEagerAction, {
+      const second = await t.mutation(api.example.e2eTriggerEagerAction, {
         key: "k1",
         value: "second",
       });
 
-      // Should have 1 execution so far (the immediate one)
+      expect(second.executed).toBe(false);
       expect(await getLogs(t)).toHaveLength(1);
 
       // Flush trailing call
@@ -403,6 +418,114 @@ describe("debouncer e2e", () => {
       expect(logs).toHaveLength(2);
       expect(logs[0].args.value).toBe("first");
       expect(logs[1].args.value).toBe("second");
+    });
+  });
+
+  // ==========================================================================
+  // Edge cases
+  // ==========================================================================
+  describe("edge cases", () => {
+    const base = { namespace: "edge", key: "k1" } as const;
+
+    test("eager cooldown restarts after a trailing run", async () => {
+      const t = initConvexTest();
+      const call = (value: string) =>
+        t.mutation(api.example.e2eTrigger, {
+          ...base,
+          value,
+          target: "mutation",
+          mode: "eager",
+          delay: 10000,
+        });
+
+      expect((await call("leading")).executed).toBe(true);
+      await advance(t, 0);
+
+      await advance(t, 9900);
+      await call("trailing");
+
+      // Trailing run fires at 10s and starts a new cooldown.
+      await advance(t, 100);
+      expect((await getLogs(t)).map((l) => l.args.value)).toEqual([
+        "leading",
+        "trailing",
+      ]);
+
+      // A call right after the trailing run must not fire immediately.
+      await advance(t, 100);
+      expect((await call("next")).executed).toBe(false);
+      await advance(t, 0);
+      expect(await getLogs(t)).toHaveLength(2);
+
+      await advance(t, 10000);
+      expect((await getLogs(t)).map((l) => l.args.value)).toEqual([
+        "leading",
+        "trailing",
+        "next",
+      ]);
+    });
+
+    test("a different mode on retrigger does not drop the call", async () => {
+      const t = initConvexTest();
+      await t.mutation(api.example.e2eTrigger, {
+        ...base,
+        value: "leading",
+        target: "mutation",
+        mode: "eager",
+        delay: 10000,
+      });
+      await t.finishInProgressScheduledFunctions();
+
+      // Same key, sliding override. The eager row governs until it fires.
+      await t.mutation(api.example.e2eTrigger, {
+        ...base,
+        value: "latest",
+        target: "mutation",
+        mode: "sliding",
+        delay: 10000,
+      });
+      await flush(t);
+
+      expect((await getLogs(t)).map((l) => l.args.value)).toEqual([
+        "leading",
+        "latest",
+      ]);
+    });
+
+    test("retrigger with a different target runs the latest target", async () => {
+      const t = initConvexTest();
+      await t.mutation(api.example.e2eTrigger, {
+        ...base,
+        value: "first",
+        target: "mutation",
+      });
+      await t.mutation(api.example.e2eTrigger, {
+        ...base,
+        value: "second",
+        target: "action",
+      });
+      await flush(t);
+
+      const logs = await getLogs(t);
+      expect(logs).toHaveLength(1);
+      expect(logs[0]).toMatchObject({
+        functionName: "e2eActionTarget",
+        args: { key: "k1", value: "second" },
+      });
+    });
+
+    test("rejects an invalid delay", async () => {
+      const t = initConvexTest();
+      for (const delay of [-1, Number.POSITIVE_INFINITY]) {
+        await expect(
+          t.mutation(api.example.e2eTrigger, {
+            ...base,
+            value: "v",
+            target: "mutation",
+            delay,
+          }),
+        ).rejects.toThrow(/non-negative finite number/);
+      }
     });
   });
 });
