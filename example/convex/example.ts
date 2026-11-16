@@ -325,6 +325,35 @@ export const e2eTrigger = mutation({
   },
 });
 
+// The client also works from an action ctx.
+export const e2eTriggerFromAction = internalAction({
+  args: { key: v.string(), value: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      pending: v.boolean(),
+      scheduledFor: v.number(),
+      retriggerCount: v.number(),
+      mode: v.union(
+        v.literal("eager"),
+        v.literal("fixed"),
+        v.literal("sliding"),
+      ),
+      hasTrailingCall: v.boolean(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    await debouncer.schedule(
+      ctx,
+      "e2e-from-action",
+      args.key,
+      internal.example.e2eTarget,
+      { key: args.key, value: args.value },
+    );
+    return await debouncer.status(ctx, "e2e-from-action", args.key);
+  },
+});
+
 export const getExecutionLog = query({
   args: {},
   returns: v.array(

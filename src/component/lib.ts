@@ -25,7 +25,7 @@ async function findCall(ctx: QueryCtx, namespace: string, key: string) {
  * failed or was canceled outside this component, the row is stale and would
  * otherwise block the key forever.
  */
-async function isLive(ctx: MutationCtx, call: Doc<"debouncedCalls">) {
+async function isLive(ctx: QueryCtx, call: Doc<"debouncedCalls">) {
   if (!call.scheduledFunctionId) {
     return false;
   }
@@ -169,7 +169,7 @@ export const status = query({
   ),
   handler: async (ctx, args) => {
     const call = await findCall(ctx, args.namespace, args.key);
-    if (!call) {
+    if (!call || !(await isLive(ctx, call))) {
       return null;
     }
 
@@ -185,7 +185,7 @@ export const status = query({
 
 /**
  * Cancel a debounced key: drop any queued call and end an eager cooldown.
- * Returns false if the key was idle.
+ * Returns false if the key was idle (no row, or a stale one).
  */
 export const cancel = mutation({
   args: {
@@ -198,11 +198,12 @@ export const cancel = mutation({
     if (!call) {
       return false;
     }
-    if (call.scheduledFunctionId) {
+    const live = await isLive(ctx, call);
+    if (live && call.scheduledFunctionId) {
       await ctx.scheduler.cancel(call.scheduledFunctionId);
     }
     await ctx.db.delete(call._id);
-    return true;
+    return live;
   },
 });
 

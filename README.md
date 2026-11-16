@@ -93,7 +93,7 @@ Best for: Batch processing, rate-limited APIs. It runs once per burst, not on a 
 
 ### Eager Mode
 
-Execute immediately on first call, then queue a trailing call with the latest arguments if more calls come in. The target runs at most once per delay window: a trailing run starts a new cooldown, and calls during it queue another trailing run.
+Execute immediately on first call, then queue a trailing call with the latest arguments if more calls come in. A trailing run starts a new cooldown, and calls during it queue another trailing run. So runs are queued at most once per delay window. The cooldown is measured from when a run is queued, so actual execution times can drift by scheduler latency.
 
 ```
 Call 1 ──▶ Execute immediately + start 5s cooldown ──┐
@@ -110,7 +110,7 @@ Best for: Real-time collaboration, AI responses (immediate feedback + final stat
 
 ### Retriggers
 
-The first call for a namespace and key sets its mode. Until that call fires, later calls follow that mode, even if they pass a different `mode`. Every retrigger replaces both the target function and its arguments, so the latest call always wins.
+The first call for an idle namespace and key sets its mode. Until the key goes idle again, later calls follow that mode, even if they pass a different `mode`. An eager key goes idle once a full cooldown passes with no calls. Every retrigger replaces both the target function and its arguments, so the latest call always wins.
 
 ## API Reference
 

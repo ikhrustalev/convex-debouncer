@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { initConvexTest } from "./setup.test";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 describe("debouncer e2e", () => {
   beforeEach(async () => {
@@ -512,6 +512,20 @@ describe("debouncer e2e", () => {
         functionName: "e2eActionTarget",
         args: { key: "k1", value: "second" },
       });
+    });
+
+    test("schedules from an action ctx", async () => {
+      const t = initConvexTest();
+      const status = await t.action(internal.example.e2eTriggerFromAction, {
+        key: "k1",
+        value: "from-action",
+      });
+      expect(status).toMatchObject({ pending: true, mode: "sliding" });
+
+      await flush(t);
+      expect((await getLogs(t)).map((l) => l.args.value)).toEqual([
+        "from-action",
+      ]);
     });
 
     test("rejects an invalid delay", async () => {

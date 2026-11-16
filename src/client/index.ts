@@ -1,10 +1,9 @@
 import {
   createFunctionHandle,
   getFunctionName,
+  type FunctionArgs,
   type FunctionReference,
-  type GenericDataModel,
-  type GenericMutationCtx,
-  type GenericQueryCtx,
+  type FunctionReturnType,
 } from "convex/server";
 import type { ComponentApi } from "../component/_generated/component.js";
 
@@ -34,7 +33,7 @@ export interface DebouncerOptions {
 }
 
 /**
- * Status of a pending debounced call.
+ * Status of an active debounced key.
  */
 export interface DebouncerStatus {
   pending: boolean;
@@ -55,7 +54,8 @@ export interface ScheduleResult {
   executed: boolean;
 
   /**
-   * Unix timestamp when the (trailing) execution is scheduled.
+   * Unix timestamp when the key's timer fires next (the delayed run, or the
+   * end of an eager cooldown).
    */
   scheduledFor: number;
 }
@@ -65,12 +65,19 @@ export interface ScheduleResult {
  */
 export type DebouncerComponentApi = ComponentApi;
 
-// Narrow ctx types so any app's typed ctx is accepted.
+// Minimal structural ctx types, so query, mutation and action ctx of any app
+// are accepted.
 type RunQueryCtx = {
-  runQuery: GenericQueryCtx<GenericDataModel>["runQuery"];
+  runQuery<Q extends FunctionReference<"query", "internal">>(
+    query: Q,
+    args: FunctionArgs<Q>,
+  ): Promise<FunctionReturnType<Q>>;
 };
 type RunMutationCtx = {
-  runMutation: GenericMutationCtx<GenericDataModel>["runMutation"];
+  runMutation<M extends FunctionReference<"mutation", "internal">>(
+    mutation: M,
+    args: FunctionArgs<M>,
+  ): Promise<FunctionReturnType<M>>;
 };
 
 /**
@@ -116,7 +123,7 @@ export class Debouncer {
   /**
    * Schedule a debounced function call.
    *
-   * @param ctx - The mutation context
+   * @param ctx - A mutation or action context
    * @param namespace - A logical grouping for debounced calls (e.g., "property-metrics")
    * @param key - A unique identifier within the namespace (e.g., propertyId)
    * @param functionRef - The mutation or action to call (e.g., `internal.metrics.compute`)
@@ -154,12 +161,12 @@ export class Debouncer {
   }
 
   /**
-   * Get the status of a pending debounced call.
+   * Get the status of a debounced key.
    *
-   * @param ctx - The query or mutation context
+   * @param ctx - A query, mutation or action context
    * @param namespace - The namespace of the debounced call
    * @param key - The key of the debounced call
-   * @returns Status object or null if no pending call exists
+   * @returns Status, or null if the key is idle
    */
   async status(
     ctx: RunQueryCtx,
@@ -173,12 +180,12 @@ export class Debouncer {
   }
 
   /**
-   * Cancel a pending debounced call.
+   * Cancel a debounced key: drop any queued call and end an eager cooldown.
    *
-   * @param ctx - The mutation context
+   * @param ctx - A mutation or action context
    * @param namespace - The namespace of the debounced call
    * @param key - The key of the debounced call
-   * @returns True if a call was cancelled, false if no pending call existed
+   * @returns True if the key was active, false if it was idle
    */
   async cancel(
     ctx: RunMutationCtx,

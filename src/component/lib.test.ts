@@ -421,11 +421,19 @@ describe("debouncer component", () => {
       });
       expect(statusBefore?.hasTrailingCall).toBe(true);
 
-      // Advance time past the delay and run scheduled functions
-      vi.advanceTimersByTime(200);
+      // The trailing run re-arms the cooldown instead of deleting the row.
+      vi.advanceTimersByTime(100);
+      await t.finishInProgressScheduledFunctions();
+      const rearmed = await t.query(api.lib.status, {
+        namespace: "test",
+        key: "key1",
+      });
+      expect(rearmed).toMatchObject({ pending: false, hasTrailingCall: false });
+      expect(rearmed!.scheduledFor).toBeGreaterThan(statusBefore!.scheduledFor);
+
+      // The new cooldown passes with nothing queued: cleanup.
       await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-      // Trailing run, then a new cooldown with nothing queued, then cleanup.
       const statusAfter = await t.query(api.lib.status, {
         namespace: "test",
         key: "key1",
@@ -567,6 +575,22 @@ describe("debouncer component", () => {
         key: "key1",
       });
       expect(status?.retriggerCount).toBe(1);
+    });
+
+    test("a key whose timer died reads as idle", async () => {
+      const t = initConvexTest();
+      await t.mutation(api.lib.schedule, call({ value: 1 }));
+      await t.run(async (ctx) => {
+        const row = await ctx.db.query("debouncedCalls").first();
+        await ctx.scheduler.cancel(row!.scheduledFunctionId!);
+      });
+
+      const key = { namespace: "test", key: "key1" };
+      expect(await t.query(api.lib.status, key)).toBeNull();
+      expect(await t.mutation(api.lib.cancel, key)).toBe(false);
+      expect(
+        await t.run((ctx) => ctx.db.query("debouncedCalls").first()),
+      ).toBeNull();
     });
   });
 });
