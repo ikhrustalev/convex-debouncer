@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
 - Tested against Convex 1.50 and convex-test 0.0.71.
 - Fix: a retrigger with a different mode no longer drops the call. The first
